@@ -1,0 +1,71 @@
+---
+title: "Logistic Regression"
+author: "Hyungyeong Hong"
+date: "8/4/2021"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+library(data.table)
+setwd("/Users/hyungyeonghong/Desktop/2021_Summer_Psat")
+set.seed(2021)
+```
+
+```{r}
+train <- fread("train_mwmote.csv", data.table = FALSE)
+```
+
+```{r}
+test <- fread("test_pca.csv", data.table = FALSE)
+```
+
+```{r}
+train <- train %>% select(-V1)
+```
+
+```{r}
+train$target <- as.factor(train$target)
+```
+
+```{r}
+set.seed(2021)
+logit_fit <- glm(target ~ ., data = train, family = binomial(link = "logit"))
+```
+
+```{r}
+pred_prob <- predict(logit_fit, test, type="response")
+pred_result <- ifelse(pred_prob < 0.5, 0, 1)
+```
+
+```{r}
+pred_result <- pred_result %>% as.data.frame %>% rename("target" = ".")
+```
+
+```{r}
+pred_result <- pred_result %>% remove_rownames()
+```
+
+```{r}
+id <- c(1:2000) %>% as.data.frame()
+colnames(id) <- "id"
+id
+```
+
+```{r}
+cbind(id, pred_result) %>% write.csv("submission.csv", row.names = FALSE)
+```
+
+```{r}
+result = fread("submission.csv")
+```
+
+```{r}
+result
+```
+
+
+```{r}
+pred_result %>% write.csv("submission.csv")
+```
+

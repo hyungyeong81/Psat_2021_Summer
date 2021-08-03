@@ -1,0 +1,73 @@
+---
+title: "pca_mwmote"
+author: "Hyungyeong Hong"
+date: "8/2/2021"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+library(data.table)
+setwd("/Users/hyungyeonghong/Desktop/2021_Summer_Psat")
+set.seed(2021)
+```
+
+```{r}
+train <- fread("train.csv", data.table = FALSE)
+```
+
+* train data의 target 변수 형태 transform
+```{r}
+train_tf <- train
+train_tf$target <- as.factor(train_tf$target) # target뱐수 factor 변환
+```
+
+# 1. PCA 시행, X 변수 189개
+
+```{r}
+pca_fit <- prcomp(train_tf[,-1], center =  TRUE, scale. = TRUE)
+# summary(pca_fit)
+```
+
+```{r}
+train_pca <- pca_fit$x[,1:189] %>% as.data.frame
+target <- train_tf[,1]
+train_pca <- cbind(target, train_pca)
+# train_pca
+```
+
+# MWMOTE
+```{r}
+library(imbalance)
+```
+
+```{r}
+set.seed(2021)
+train_mwmote <- mwmote(train_pca, numInstances = 22382, classAttr = "target")
+train_mwmote %>% group_by(target) %>% summarise(count = n())
+```
+
+```{r}
+train_mwmote <- rbind(train_pca, train_mwmote)
+train_mwmote %>% group_by(target) %>% summarise(count = n())
+```
+
+```{r}
+train_mwmote %>% write.csv("train_mwmote.csv", row.names = FALSE)
+```
+
+```{r}
+test <- fread("test.csv", data.table = FALSE)
+```
+
+```{r}
+test_pca <- predict(pca_fit, test) %>% as.data.frame %>% select(PC1 : PC189)
+```
+
+```{r}
+test_pca %>% write.csv("test_pca.csv", row.names = FALSE)
+```
+
+
+
+

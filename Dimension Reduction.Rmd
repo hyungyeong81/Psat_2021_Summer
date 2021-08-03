@@ -1,0 +1,352 @@
+---
+title: "Dimension Reduction"
+author: "Hyungyeong Hong"
+date: "8/2/2021"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+library(data.table)
+setwd("/Users/hyungyeonghong/Desktop/2021_Summer_Psat")
+set.seed(2021)
+```
+
+```{r}
+train <- fread("train.csv", data.table = FALSE)
+```
+
+```{r}
+train
+```
+
+* train data의 target 변수 형태 transform
+```{r}
+train_tf <- train
+train_tf$target <- as.factor(train_tf$target) # target뱐수 factor 변환
+```
+
+# 1. PCA만 시행, X 변수 189개
+
+```{r}
+pca_fit <- prcomp(train_tf[,-1], center =  TRUE, scale. = TRUE)
+summary(pca_fit)
+```
+
+```{r}
+train_pca <- pca_fit$x[,1:189] %>% as.data.frame
+target <- train_tf[,1]
+train_pca <- cbind(target, train_pca)
+train_pca
+```
+
+# 2, t-test만 시행: X 변수 159개
+
+```{r}
+df <- data.frame()
+
+for(i in 2:ncol(train_tf)){
+  pvalue = t.test(train_tf[,i] ~ train_tf$target)
+  df[i,1] = names(train_tf)[i]
+  df[i,2] = pvalue$p.value
+  
+}
+
+df = df %>%  filter(V2 < 0.05)
+train_ttest <- train_tf %>% select('target',unique(df$V1))
+```
+
+```{r}
+train_ttest
+```
+
+# 3.  t-test + PCA: X 변수 150개
+
+```{r}
+pca_fit <- prcomp(train_ttest[,-1], center =  TRUE, scale. = TRUE)
+summary(pca_fit)
+```
+
+```{r}
+train_ttest_pca <- pca_fit$x[,1:150] %>% as.data.frame
+target <- train_ttest[,1]
+train_ttest_pca <- cbind(target, train_ttest_pca)
+train_ttest_pca
+```
+# 7:3 으로 train/test 나누어 평가
+```{r}
+library(caret)
+```
+
+```{r}
+set.seed(2021)
+train_idx <- createDataPartition(train_pca$target, p = 0.7, list = FALSE, times = 1)
+train_pca_tr <- train_pca[train_idx, ]
+train_pca_te <- train_pca[-train_idx, ]
+train_pca_te
+```
+
+```{r}
+set.seed(2021)
+logit_fit <- glm(target ~ ., data = train_pca_tr, family = binomial(link = "logit"))
+```
+
+```{r}
+set.seed(2021)
+pred_prob <- predict(logit_fit, train_pca_te, type="response")
+```
+
+```{r}
+pred_result <- ifelse(pred_prob < 0.5, 0, 1)
+```
+
+```{r}
+library(MLmetrics)
+F1_Score(y_pred = pred_result, y_true = train_pca_te$target, positive = 1)
+```
+
+
+```{r}
+set.seed(2021)
+train_idx <- createDataPartition(train_ttest$target, p = 0.7, list = FALSE, times = 1)
+train_ttest_tr <- train_ttest[train_idx, ]
+train_ttest_te <- train_ttest[-train_idx, ]
+```
+
+```{r}
+set.seed(2021)
+logit_fit <- glm(target ~ ., data = train_ttest_tr, family = binomial(link = "logit"))
+pred_prob <- predict(logit_fit, train_ttest_te, type="response")
+pred_result <- ifelse(pred_prob < 0.5, 0, 1)
+F1_Score(y_pred = pred_result, y_true = train_ttest_te$target, positive = 1)
+```
+
+```{r}
+set.seed(2021)
+train_idx <- createDataPartition(train_ttest_pca$target, p = 0.7, list = FALSE, times = 1)
+train_ttest_pca_tr <- train_ttest_pca[train_idx, ]
+train_ttest_pca_te <- train_ttest_pca[-train_idx, ]
+```
+
+```{r}
+set.seed(2021)
+logit_fit <- glm(target ~ ., data = train_ttest_pca_tr, family = binomial(link = "logit"))
+pred_prob <- predict(logit_fit, train_ttest_pca_te, type="response")
+pred_result <- ifelse(pred_prob < 0.5, 0, 1)
+F1_Score(y_pred = pred_result, y_true = train_ttest_pca_te$target, positive = 1)
+```
+
+
+# SMOTE - PCA
+
+```{r}
+library(DMwR)
+```
+
+* perc.over = 600, perc.under = 100 ->  0.8269423 ~ 0.8304958
+```{r}
+set.seed(2021)
+train_smote <- train_pca
+train_smote <- SMOTE(target ~ ., data = train_smote, perc.over = 800, k = 5, perc.under = 115)
+train_smote %>% group_by(target) %>% summarise(count = n())
+```
+
+```{r}
+set.seed(2021)
+train_idx <- createDataPartition(train_smote$target, p = 0.7, list = FALSE, times = 1)
+train_smote_tr <- train_smote[train_idx, ]
+train_smote_te <- train_smote[-train_idx, ]
+```
+
+```{r}
+set.seed(2021)
+logit_fit <- glm(target ~ ., data = train_smote_tr, family = binomial(link = "logit"))
+pred_prob <- predict(logit_fit, train_smote_te, type="response")
+pred_result <- ifelse(pred_prob < 0.5, 0, 1)
+F1_Score(y_pred = pred_result, y_true = train_smote_te$target, positive = 1)
+```
+
+# SMOTE - ttest
+```{r}
+set.seed(2021)
+train_smote <- train_ttest
+train_smote <- SMOTE(target ~ ., data = train_smote, perc.over = 800, k = 5, perc.under = 115)
+train_smote %>% group_by(target) %>% summarise(count = n())
+```
+
+```{r}
+set.seed(2021)
+train_idx <- createDataPartition(train_smote$target, p = 0.7, list = FALSE, times = 1)
+train_smote_tr <- train_smote[train_idx, ]
+train_smote_te <- train_smote[-train_idx, ]
+```
+
+```{r}
+set.seed(2021)
+logit_fit <- glm(target ~ ., data = train_smote_tr, family = binomial(link = "logit"))
+pred_prob <- predict(logit_fit, train_smote_te, type="response")
+pred_result <- ifelse(pred_prob < 0.5, 0, 1)
+F1_Score(y_pred = pred_result, y_true = train_smote_te$target, positive = 1)
+```
+
+# SMOTE - ttest + PCA
+```{r}
+set.seed(2021)
+train_smote <- train_ttest_pca
+train_smote <- SMOTE(target ~ ., data = train_smote, perc.over = 800, k = 5, perc.under = 115)
+train_smote %>% group_by(target) %>% summarise(count = n())
+```
+
+```{r}
+set.seed(2021)
+train_idx <- createDataPartition(train_smote$target, p = 0.7, list = FALSE, times = 1)
+train_smote_tr <- train_smote[train_idx, ]
+train_smote_te <- train_smote[-train_idx, ]
+```
+
+```{r}
+set.seed(2021)
+logit_fit <- glm(target ~ ., data = train_smote_tr, family = binomial(link = "logit"))
+pred_prob <- predict(logit_fit, train_smote_te, type="response")
+pred_result <- ifelse(pred_prob < 0.5, 0, 1)
+F1_Score(y_pred = pred_result, y_true = train_smote_te$target, positive = 1)
+```
+
+
+```{r}
+# train_pca %>% write.csv("train_pca.csv")
+```
+
+```{r}
+# train_ttest_pca %>% write.csv("train_ttest_pca.csv")
+```
+
+```{r}
+# train_ttest %>% write.csv("train_ttest.csv")
+```
+
+# MWMOTE
+```{r}
+library(imbalance)
+```
+
+```{r}
+train_tf %>% group_by(target) %>% summarise(count = n())
+25191 - 2809
+```
+
+
+```{r}
+set.seed(2021)
+train_mwmote <- mwmote(train_pca, numInstances = 22382, classAttr = "target")
+train_mwmote %>% group_by(target) %>% summarise(count = n())
+train_mwmote
+```
+
+```{r}
+set.seed(2021)
+train_mwmote <- rbind(train_pca, train_mwmote)
+rows <- sample(nrow(train_mwmote))
+train_mwmote <- train_mwmote[rows, ]
+```
+
+```{r}
+set.seed(2021)
+train_idx <- createDataPartition(train_mwmote$target, p = 0.7, list = FALSE, times = 1)
+train_mwmote_tr <- train_mwmote[train_idx, ]
+train_mwmote_te <- train_mwmote[-train_idx, ]
+```
+
+```{r}
+set.seed(2021)
+logit_fit <- glm(target ~ ., data = train_mwmote_tr, family = binomial(link = "logit"))
+pred_prob <- predict(logit_fit, train_mwmote_te, type="response")
+pred_result <- ifelse(pred_prob < 0.5, 0, 1)
+F1_Score(y_pred = pred_result, y_true = train_mwmote_te$target, positive = 1)
+```
+
+# ADASYN
+```{r}
+library(smotefamily)
+```
+
+```{r}
+set.seed(2021)
+adasyn_result <- ADAS(X = train_pca[, -1], target = train_pca[, 1], K = 5)
+train_adasyn <- adasyn_result$data
+train_adasyn <- train_adasyn[sample(nrow(train_adasyn)), ]
+train_adasyn <- train_adasyn %>% rename("target" = "class")
+rownames(train_adasyn) <- NULL
+train_adasyn$target <- as.factor(train_adasyn$target)
+train_adasyn %>% group_by(target) %>% summarise(count = n())
+```
+
+```{r}
+set.seed(2021)
+train_idx <- createDataPartition(train_adasyn$target, p = 0.7, list = FALSE, times = 1)
+train_adasyn_tr <- train_adasyn[train_idx, ]
+train_adasyn_te <- train_adasyn[-train_idx, ]
+```
+
+```{r}
+set.seed(2021)
+logit_fit <- glm(target ~ ., data = train_adasyn_tr, family = binomial(link = "logit"))
+pred_prob <- predict(logit_fit, train_adasyn_te, type="response")
+pred_result <- ifelse(pred_prob < 0.5, 0, 1)
+F1_Score(y_pred = pred_result, y_true = train_adasyn_te$target, positive = 1)
+```
+
+```{r}
+set.seed(2021)
+adasyn_result <- ADAS(X = train_ttest[, -1], target = train_ttest[, 1], K = 5)
+train_adasyn <- adasyn_result$data
+train_adasyn <- train_adasyn[sample(nrow(train_adasyn)), ]
+train_adasyn <- train_adasyn %>% rename("target" = "class")
+rownames(train_adasyn) <- NULL
+train_adasyn$target <- as.factor(train_adasyn$target)
+train_adasyn %>% group_by(target) %>% summarise(count = n())
+```
+
+```{r}
+set.seed(2021)
+train_idx <- createDataPartition(train_adasyn$target, p = 0.7, list = FALSE, times = 1)
+train_adasyn_tr <- train_adasyn[train_idx, ]
+train_adasyn_te <- train_adasyn[-train_idx, ]
+```
+
+```{r}
+set.seed(2021)
+logit_fit <- glm(target ~ ., data = train_adasyn_tr, family = binomial(link = "logit"))
+pred_prob <- predict(logit_fit, train_adasyn_te, type="response")
+pred_result <- ifelse(pred_prob < 0.5, 0, 1)
+F1_Score(y_pred = pred_result, y_true = train_adasyn_te$target, positive = 1)
+```
+
+```{r}
+set.seed(2021)
+adasyn_result <- ADAS(X = train_ttest_pca[, -1], target = train_ttest_pca[, 1], K = 5)
+train_adasyn <- adasyn_result$data
+train_adasyn <- train_adasyn[sample(nrow(train_adasyn)), ]
+train_adasyn <- train_adasyn %>% rename("target" = "class")
+rownames(train_adasyn) <- NULL
+train_adasyn$target <- as.factor(train_adasyn$target)
+train_adasyn %>% group_by(target) %>% summarise(count = n())
+```
+
+```{r}
+set.seed(2021)
+train_idx <- createDataPartition(train_adasyn$target, p = 0.7, list = FALSE, times = 1)
+train_adasyn_tr <- train_adasyn[train_idx, ]
+train_adasyn_te <- train_adasyn[-train_idx, ]
+```
+
+```{r}
+set.seed(2021)
+logit_fit <- glm(target ~ ., data = train_adasyn_tr, family = binomial(link = "logit"))
+pred_prob <- predict(logit_fit, train_adasyn_te, type="response")
+pred_result <- ifelse(pred_prob < 0.5, 0, 1)
+F1_Score(y_pred = pred_result, y_true = train_adasyn_te$target, positive = 1)
+```
+
+
+
