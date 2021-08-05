@@ -1,0 +1,45 @@
+---
+title: "pca only"
+author: "Hyungyeong Hong"
+date: "8/5/2021"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+library(data.table)
+setwd("/Users/hyungyeonghong/Desktop/2021_Summer_Psat")
+set.seed(2021)
+```
+
+```{r}
+train <- fread("train.csv", data.table = FALSE)
+```
+
+* train data의 target 변수 형태 transform
+```{r}
+train_tf <- train
+train_tf$target <- as.factor(train_tf$target) # target뱐수 factor 변환
+```
+
+# 1. PCA 시행, X 변수 189개
+
+```{r}
+pca_fit <- prcomp(train_tf[,-1], center =  TRUE, scale. = TRUE)
+# summary(pca_fit)
+```
+
+```{r}
+train_pca <- pca_fit$x[,1:189] %>% as.data.frame
+target <- train_tf[,1]
+train_pca <- cbind(target, train_pca)
+train_pca
+```
+
+```{r}
+train_pca %>% write.csv("train_pca.csv", row.names = FALSE)
+```
+
+
+
+

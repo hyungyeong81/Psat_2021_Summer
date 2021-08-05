@@ -1,0 +1,127 @@
+---
+title: "LDA"
+author: "Hyungyeong Hong"
+date: "8/5/2021"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+library(data.table)
+library(caret)
+setwd("/Users/hyungyeonghong/Desktop/2021_Summer_Psat")
+set.seed(2021)
+```
+
+```{r}
+train <- fread("train.csv", data.table = FALSE)
+```
+
+* train data의 target 변수 형태 transform
+```{r}
+train_tf <- train
+train_tf$target <- as.factor(train_tf$target) # target뱐수 factor 변환
+```
+
+```{r}
+preproc_param <- train_tf %>% preProcess(method = c("center", "scale"))
+train_scaled <- preproc_param %>% predict(train_tf)
+```
+
+```{r}
+train_scaled
+```
+
+```{r}
+set.seed(2021)
+train_idx <- train_scaled$target %>% createDataPartition(p = 0.7, list = FALSE)
+train_set <- train_scaled[train_idx , ]
+valid_set <- train_scaled[-train_idx , ]
+```
+```{r}
+library(MASS)
+model <- lda(target~., data = train_set)
+```
+
+```{r}
+model
+```
+
+
+```{r}
+predictions <- model %>% predict(valid_set)
+mean(predictions$class==valid_set$target)
+```
+
+
+### 실제 예측
+```{r}
+train <- fread("train.csv", data.table = FALSE)
+```
+
+```{r}
+test <- fread("test.csv", data.table = FALSE)
+```
+
+* train data의 target 변수 형태 transform
+```{r}
+train_tf <- train
+train_tf$target <- as.factor(train_tf$target) # target뱐수 factor 변환
+```
+
+```{r}
+preproc_param <- train_tf %>% preProcess(method = c("center", "scale"))
+train_scaled <- preproc_param %>% predict(train_tf)
+```
+
+```{r}
+train_scaled
+```
+
+```{r}
+preproc_param <- test %>% preProcess(method = c("center", "scale"))
+test_scaled <- preproc_param %>% predict(test)
+```
+
+```{r}
+test_scaled
+```
+
+```{r}
+library(MASS)
+model <- lda(target~., data = train_scaled)
+```
+
+```{r}
+model
+```
+
+```{r}
+predictions <- model %>% predict(test_scaled)
+```
+
+```{r}
+predictions
+```
+
+```{r}
+predictions <- predictions %>% as.data.frame
+predictions <- predictions[,1] %>% as.data.table
+colnames(predictions) <- "target"
+predictions
+```
+
+```{r}
+id <- 1:2000 %>% as.data.table
+colnames(id) <- "id"
+id
+```
+
+```{r}
+cbind(id, predictions) %>% write.csv("lda_ver1.csv", row.names = FALSE)
+```
+
+```{r}
+fread("lda_ver1.csv") %>% group_by(target) %>% summarise(count = n())
+```
+
