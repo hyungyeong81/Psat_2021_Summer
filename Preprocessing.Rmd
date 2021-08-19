@@ -1,0 +1,130 @@
+---
+title: "Preprocessing"
+author: "Hyungyeong Hong"
+date: "8/1/2021"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+library(data.table)
+setwd("/Users/hyungyeonghong/Desktop/2021_Summer_Psat")
+```
+
+```{r}
+train <- fread("train.csv")
+```
+
+* 결측치 확인
+```{r}
+train %>% lapply(is.na) %>% sapply(sum) %>% sum #결측치 없음
+```
+
+* unique값 개수 min, max 확인
+```{r}
+train %>% select(-target) %>% lapply(unique) %>% sapply(length) %>% min
+train %>% select(-target) %>% lapply(unique) %>% sapply(length) %>% max
+```
+
+* 클래스 불균형 확인
+```{r}
+train %>% group_by(target) %>% count
+```
+
+```{r}
+train_tf <- train
+train_tf$target <- as.factor(train_tf$target) # target뱐수 factor 변환
+```
+
+너 무 많 아
+```{r}
+train_pca <- prcomp(train_tf[,-1], center =  TRUE, scale. = TRUE)
+summary(train_pca)
+```
+
+```{r}
+cor <- cor(train_tf[,-1], method = "pearson")
+```
+
+```{r}
+which(abs(cor) > 0.9 & abs(cor) < 1)
+```
+
+* not skewed
+```{r}
+library(e1071)
+skewness <- train_tf %>% select(-target) %>% sapply(skewness)
+(abs(skewness) > 0.5) %>% sum
+```
+
+```{r}
+var <- train_tf[, -1] %>% sapply(var)
+which(abs(var) < 0.5)
+```
+
+
+
+
+
+
+
+
+```{r}
+data <- fread("train.csv", data.table = FALSE)
+data$target <- as.factor(data$target)
+
+df <- data.frame()
+
+for(i in 2:ncol(data)){
+  pvalue = t.test(data[,i] ~ data$target)
+  df[i,1] = names(data)[i]
+  df[i,2] = pvalue$p.value
+  
+}
+
+df = df %>%  filter(V2 < 0.05)
+data = data %>% select('target',unique(df$V1))
+```
+
+```{r}
+t.test(data[,2] ~ data$target)
+```
+
+
+```{r}
+data
+```
+
+
+```{r}
+data_pca <- prcomp(data[,-1], center =  TRUE, scale. = TRUE)
+summary(data_pca)
+```
+
+
+
+
+```{r}
+# install.packages ("/Users/hyungyeonghong/Downloads/DMwR_0.4.1.tar.gz", repos=NULL, type="source")
+# install.packages(c("xts", "quantmod", "zoo", "abind", "ROCR"))
+library(DMwR)
+```
+
+```{r}
+train_smote <- train # 변수에 따로 저장
+train_smote$target <- as.factor(train_smote$target) # factor처리
+set.seed(2021)
+train_smote <- SMOTE(target ~ ., data = train_smote, perc.over = 200, k = 5, perc.under = 300)
+train_smote %>% group_by(target) %>% summarise(count = n())
+```
+```{r}
+train_smote_pca <- prcomp(train_smote[,-1], center =  TRUE, scale. = TRUE)
+summary(train_smote_pca)
+train_smote_pca
+```
+
+
+
+
+
+
